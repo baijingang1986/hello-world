@@ -1,0 +1,250 @@
+
+2.RemoteViews 在桌面小部件的应用
+
+AppWidgetProvider是Android提供给我们的用于实现桌面小部件的类，其本质也就是一个广播，，所以实际使用中把他看成一个广播即可，我们来看下怎么去具体的实现一个小部件
+
+1.定义小部件的界面
+
+在res/layout下我们先写个widget.xml这里就是小部件的视图了，所以你尽量的随便写
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <ImageView
+        android:id="@+id/iv1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@mipmap/ic_launcher" />
+
+    <ImageView
+        android:id="@+id/iv2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@mipmap/ic_launcher" />
+
+    <TextView
+        android:id="@+id/tv_test"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Test"
+        android:textSize="20dp" />
+
+</LinearLayout>
+
+这里我写了两个图片和一个文本
+
+2.定义小部件配置信息
+
+在res/xml中定义一个appwidget_info.xml
+
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget"
+    android:minHeight="84dp"
+    android:minWidth="84dp"
+    android:updatePeriodMillis="86400000">
+</appwidget-provider>
+上面的几个参数的含义很明确，android:initialLayout就是加载布局其他两个就是最小的高宽，而updatePeriodMillis就是更新小组件的时间周期
+
+3.定义小组件的实现类
+
+这个类需要继承AppWidgetProvider
+
+package com.liuguilin.remotrview.provider;
+
+import android.app.PendingIntent;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProvider;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.os.SystemClock;
+import android.util.Log;
+import android.widget.RemoteViews;
+import android.widget.Toast;
+
+import com.liuguilin.remotrview.R;
+
+/*
+ *  项目名：  RemoteViewsSample 
+ *  包名：    com.liuguilin.remotrview.provider
+ *  文件名:   AppWidgetImpl
+ *  创建者:   LiuGuiLin
+ *  创建时间:  2017/1/14 0014 下午 4:35
+ *  描述：    小组件
+ */
+public class AppWidgetImpl extends AppWidgetProvider {
+
+public static final String TAG = "AppWidgetImpl";
+    public static final String CLICK_ACTION = "com.liuguilin.remotrview.provider.click_action";
+
+    private AppWidgetManager appWidgetManage;
+    private float degree;
+    private Bitmap bitmap;
+
+    public AppWidgetImpl() {
+        super();
+    }
+
+    @Override
+    public void onReceive(final Context context, final Intent intent) {
+        super.onReceive(context, intent);
+        String action = intent.getAction();
+        Log.i(TAG, "action:" + action);
+        if (CLICK_ACTION.equals(action)) {
+            Toast.makeText(context, "click it", Toast.LENGTH_SHORT).show();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    bitmap = BitmapFactory.decodeResource(context.getResources(), R.mipmap.ic_launcher);
+                    appWidgetManage = AppWidgetManager.getInstance(context);
+                    for (int i = 0; i < 37; i++) {
+                        degree = (i * 10) % 360;
+                        RemoteViews remoteViews = new RemoteViews(context.getPackageName(), R.layout.widget);
+                        remoteViews.setImageViewBitmap(R.id.iv1, rotateBitmap(bitmap));
+                        remoteViews.setImageViewBitmap(R.id.iv2, rotateBitmap(bitmap));
+                        Intent intentClick = new Intent(CLICK_ACTION);
+                        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intentClick, 0);
+                        remoteViews.setOnClickPendingIntent(R.id.iv1, pendingIntent);
+                        appWidgetManage.updateAppWidget(new ComponentName(context, AppWidgetImpl.class), remoteViews);
+                        SystemClock.sleep(30);
+                    }
+                }
+            }).start();
+        }
+    }
+    //每次更新都会调用
+    @Override
+    public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds);
+        Log.i(TAG, "onUpdate");
+        RemoteViews remoteViews = new RemoteViews(context.getPackageName(), R.layout.widget);
+        Intent intentClick = new Intent(CLICK_ACTION);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intentClick, 0);
+        remoteViews.setOnClickPendingIntent(R.id.iv1, pendingIntent);
+        appWidgetManage.updateAppWidget(new ComponentName(context, AppWidgetImpl.class), remoteViews);
+    }
+
+    //动画
+    private Bitmap rotateBitmap(Bitmap bitmap) {
+        Matrix matrix = new Matrix();
+        matrix.reset();
+        matrix.setRotate(degree);
+        Bitmap temBitmap = Bitmap.createBitmap(this.bitmap, 0, 0, this.bitmap.getWidth(), this.bitmap.getHeight(), matrix, true);
+        return temBitmap;
+    }
+}
+
+上述的代码实现了一个简单的桌面小部件，这里加了个动画，其他到没什么。我们需要注册才能使用
+
+4.在清单文件中声明小部件
+<receiver android:name=".provider.AppWidgetImpl">
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_info" />
+
+            <intent-filter>
+                <action android:name="com.liuguilin.remotrview.provider.click_action" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+ </receiver>
+上面的代码有两个Action，其中第一个是识别小部件的动作，第二个就是他的标识，必须存在，这是系统的规范
+
+AppWidgetProvider 除了最常用的onUpdate方法，还有其他的方法，onEnable，onDisabled,onDeleted以及onReceiver，这些方法都会被onReceiver在适当的时候调用，所以含义如下
+
+onEnable:当该窗口小部件第一次添加到桌面的时候调用该方法，可添加多次但是只有第一次调用
+onUpdate:小部件被添加或者第一次更新的时候都会调用一次该方法，小部件的更新机制由updatePeriodMillis来指定
+onDeleted:没删除一次小部件都会调用
+onDisabled:当最后一个该类型的小部件会删除时调用
+onReceiver:广播内置的方法
+关于AppWidgetProvider 的onReceiver方法的具体分发过程，可以看源码中的实现，如下图，通过下面的代码可以看出，onReceiver会根据不同的Action来分别调用这几个方法
+
+public void onReceive(Context context, Intent intent) {
+        // Protect against rogue update broadcasts (not really a security issue,
+        // just filter bad broacasts out so subclasses are less likely to crash).
+        String action = intent.getAction();
+        if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)) {
+            Bundle extras = intent.getExtras();
+            if (extras != null) {
+                int[] appWidgetIds = extras.getIntArray(AppWidgetManager.EXTRA_APPWIDGET_IDS);
+                if (appWidgetIds != null && appWidgetIds.length > 0) {
+                    this.onUpdate(context, AppWidgetManager.getInstance(context), appWidgetIds);
+                }
+            }
+        } else if (AppWidgetManager.ACTION_APPWIDGET_DELETED.equals(action)) {
+            Bundle extras = intent.getExtras();
+            if (extras != null && extras.containsKey(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
+                final int appWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID);
+                this.onDeleted(context, new int[] { appWidgetId });
+            }
+        } else if (AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED.equals(action)) {
+            Bundle extras = intent.getExtras();
+            if (extras != null && extras.containsKey(AppWidgetManager.EXTRA_APPWIDGET_ID)
+                    && extras.containsKey(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS)) {
+                int appWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID);
+                Bundle widgetExtras = extras.getBundle(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS);
+                this.onAppWidgetOptionsChanged(context, AppWidgetManager.getInstance(context),
+                        appWidgetId, widgetExtras);
+            }
+        } else if (AppWidgetManager.ACTION_APPWIDGET_ENABLED.equals(action)) {
+            this.onEnabled(context);
+        } else if (AppWidgetManager.ACTION_APPWIDGET_DISABLED.equals(action)) {
+            this.onDisabled(context);
+        } else if (AppWidgetManager.ACTION_APPWIDGET_RESTORED.equals(action)) {
+            Bundle extras = intent.getExtras();
+            if (extras != null) {
+                int[] oldIds = extras.getIntArray(AppWidgetManager.EXTRA_APPWIDGET_OLD_IDS);
+                int[] newIds = extras.getIntArray(AppWidgetManager.EXTRA_APPWIDGET_IDS);
+                if (oldIds != null && oldIds.length > 0) {
+                    this.onRestored(context, oldIds, newIds);
+                    this.onUpdate(context, AppWidgetManager.getInstance(context), newIds);
+                }
+            }
+        }
+    }
+上面描述了一个开发桌面小部件的完整过程 ，例子比较简单，实际开发过程中会稍微的复杂一些，但是开发流程都是一样的， 
+可以发现，桌面小程序在界面上的操作都是通过RemoteViews，不管小部件的界面初始化还是界面的更新都需要依赖他
+
+3.PendingIntent概述
+
+我们在前面多次提到了PendingIntent，归根结底，他和Intent有什么区别呢我们就来说下
+
+顾名思义，PendingIntent表示处于一种等待的意图，即特定，等待的意思，就是说你要在某种条件下才会触发，所以我们很容易的就联想到RemoteViews了
+
+PendingIntent有三种待定的意图，就是Activity,Service，广播，可以看如下图
+
+getActivity(Context context, int requestCode, Intent intent, int flags)获取一个bindIntent,当特定意图发生时，效果相当于Context.startActivity(intent)
+getService/getBroadcast
+如图中所示，这三个方法的参数都是一样的，主要理解的是第二个参数requstCode和第四个参数flags,code代表的是发送码，多数情况下为0，
+而且code会影响到flag，flag常见的有几种我们下面会说，其实最主要是理解匹配规则，
+
+PendingIntent的匹配规则为：如果两个PendingIntent他们内部的Intent相同并且requstCode也相同的话，那么PendingIntent就是相同的，
+code比较好理解,那什么情况下Intent相同呢，Intent的匹配规则是：如果两个Intent的ComponentName的匹配过程，只要Intent之间的ComponentName和
+intent-filter相同,那么这两个intent就相同，需要注意的是Extras不参与匹配过程，只要intent之间的name和intent-filter相同就行，
+我们再来说下flags的参数含义.
+FLAG_ONE_SHOT 
+当前描述的PendingIntent只能被使用一次,然后他就会被cancel,如果后续还有相同的PendingIntent，那么他的send方法就会失败，对于通知栏的消息来说，如果采用此标记位，那么同类的通知只能使用一次，后续将无法打开
+
+FLAG_NO_CREATE 
+当前描述的PendingIntent不会主动去创建，如果当前PendingIntent之前不存在，那么getActivity等方法都会直接返回null,即获取PendingIntent失败，这个标记位很少见，他无法单独使用，因此在日常开发当中，并没有太多的意义，这里就不过多的介绍了
+
+FLAG_CANCEL_CURRENT 
+当前描述的PendingIntent如果已经存在，那么就会被cancel,然后系统创建一个新的PendingIntent，对于通知栏来说，那些被cancel的消息将无法被打开
+
+FLAG_UPDATE_CURRENT 
+当前描述的PendingIntent如果已经存在的话，那么他们就会被更新，他们的intent中的extras会被替换成新的
+
+从上面的分析看还是不太好理解这四个标记位，下面结合实际的项目来，这里分析两种情况，如下代码，如果notify的第一个参数id是常量，那么多次通知就只能弹出一个通知，后续会把前面的替换掉，如果每次不一样，就会多弹出几个通知
+
+如果notify方法的id是常量，那么不管PendingIntent是否匹配，后面的通知会替换前面的通知，这个很好理解
+
+如果notify方法的id每次不同，那么当PendingIntent不匹配时，这里的匹配是指PendingIntent中Intent相同切requstCode相同，在这种情况下不管采用了
+何种标记位，这些通知之间不互相干扰。如果PendingIntent处于匹配状态，这个时候要分情况讨论，如果采用FLAG_ONE_SHOT标记位，那么后续通知中，
+PendingIntent会和第一条通知保持一致，包括其中的Extras,单击任何一条通知，剩余的都无法打开当所有的通知被清除后，会重复这个过程，
+如果采用FLAG_CANCEL_CURRENT标记位，那么只有最新的通知可以打开，之前弹出的所有通知均无法打开，如果采用FLAG_UPDATE_CURRENT标记位。
+那么之前弹出的通知PendingIntent会被更新，最终他们和最新的一条通知保持一致，包括其中的Extras,那么这些通知都可以被打开

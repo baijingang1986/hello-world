@@ -1,0 +1,77 @@
+一.RemoteViews的应用
+RemoteViews在实际的开发中，就是通知栏和桌面小组件了，这个大家应该都不陌生，主要是通过NotificationManager的notify方法去实现通知栏，也有通过AppwidthProvider来实现桌面小部件的，其实小部件本质上就是一个广播，他们两个的更新都无法像Activity中直接更新View，这是因为两者都运行在其他大家进程中，确切来说是SystemService中，为了跨进程更新UI，RemoteViews提供了一系列的set方法，我们接下来就是来实际的演示了
+1.RemoteViews在通知栏上的应用
+首先来看下通知栏，我们先了解一下系统默认的样式
+//系统默认样式
+ private void systemStyleNotirfication() {
+        Notification notification = new Notification();
+        notification.icon = R.mipmap.ic_launcher;
+        notification.tickerText = "Hello LiuGuiLin";
+        notification.when = System.currentTimeMillis();
+        notification.flags = Notification.FLAG_AUTO_CANCEL;
+        Intent intent = new Intent(this, TestActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        notification.setLatestEventInfo(this, "LiuGuiLin", "This is Notification", pendingIntent);
+        NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        notificationManager.notify(1, notification);
+    }
+ 虽说如此，但是往往有些需求是不满足的，所以需要自定义了，自定义其实也很简单，我们看下实际代码
+ //自定义通知栏
+    private void viewStyleNotirfication() {
+        Notification notification = new Notification();
+        notification.icon = R.mipmap.ic_launcher;
+        notification.tickerText = "Hello LiuGuiLin";
+        notification.when = System.currentTimeMillis();
+        notification.flags = Notification.FLAG_AUTO_CANCEL;
+        Intent intent = new Intent(this, TestActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.notification_item);
+        remoteViews.setTextViewText(R.id.tv_title, "This is Title");
+        remoteViews.setTextViewText(R.id.tv_content, "This is Notification Content");
+        remoteViews.setImageViewResource(R.id.iv_img, R.mipmap.ic_launcher);
+        remoteViews.setOnClickPendingIntent(R.id.ll_open, pendingIntent);
+        notification.contentView = remoteViews;
+        NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        notificationManager.notify(2, notification);
+    }
+  可以看到，这是我自己写的布局notification_item
+  <?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ll_open"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:id="@+id/iv_img"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingLeft="10dp">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/black" />
+
+        <TextView
+            android:id="@+id/tv_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/black" />
+    </LinearLayout>
+</LinearLayout>
+
+RemoteViews的使用也是非常的简单，只要提供当前应用的包名和布局文件的资源ID就可以创建一个RemoteViews了，如何更新呢？这一点
+和View还是有很大的不同，RemoteViews更新的时候，无法直接访问里面的View,必须通过RemoteViews所提供的一系列方法来更新，比如设置TextView,那就需要
+remoteViews.setTextViewText(R.id.tv_title, "This is Title");
+如果需要点击事件的话，需要setOnClickPendingIntent来触发了，关于PendingIntent，他表示点击就是一种待定的意图，触发后才会操作，我们后面具体介绍
+
